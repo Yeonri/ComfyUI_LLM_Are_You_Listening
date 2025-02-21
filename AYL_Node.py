@@ -28,38 +28,86 @@ STORY_PROMPT = (
 )
 
 IMAGE_PROMPT = (
-    "You are an AI assistant specialized in converting Korean sentences into English image prompts for image generation models. "
-    "Change the contents entered in Korean to English and follow the procedure below. "
-    "1. Story contextualization: Understand the overall story of the story by grasping the context of the summarized story and the current story. "
-    "2. Contextualize previous image prompts and summary stories: Identify the relationship between the summarized story and the previous image prompt. "
-    "3. Create current story image prompts: Use the context of the summarized story you have identified and the previous image prompt context to create a very natural image prompt for the current story. "
-    "   You need to accurately grasp the context of the background, object, condition, costume, etc. "
-    "# Important: You must only print out image prompts. There should never be any arbitrarily decorated or added content other than the summarized story and the entered story."
+    """
+    You are an AI that generates image prompts for the current story.
+    **All contents are translated into English, processed, and printed in English.**
+    **Never use description data that you don't need in your current story**
+    If the given data is empty, it is the beginning of the story. Create an image prompt by only generating basic information about the current story. Do not create objects other than those specified in the current story.
+    Follow the steps below.
+
+    # IMAGE PROMPT FORM:
+        "[Targets] [Attire] [Description and Action] [Positioning], [Background], [Time],"
+    
+    1. Thought
+        - Figure out what scene the **current story** depicts.
+        - Figure out how the background of the current story should be structured.
+        - The objects in the current story determine who exists
+        - Determine which part of the background exists for each object
+        - **Determine specifically what the objects in the current story are doing**
+    
+    2. inspection
+        - determine what the current story is trying to describe and examine whether the generated image prompts fit your needs.
+    
+    3. Create an image prompt
+        - Create an image prompt based on what you thought in step 1 and 2
+        - The scene of the story must be created in detail with the action, background, and effect of the object.
+        - Please specify the exact location of each object in order to clearly display the object in the image.
+        - **Describe the behavior and interaction of the object in more detail.**
+
+    4. improvement
+        - **Please think of an improved image prompt so that the generated image prompt is dramatically represented for the story before generating it**
+        - **Describe the behavior and interaction of the object in more detail.**
+        - **Please express the emotions and facial expressions of the object in detail**
+        - **Create an object's attribute [age, hair color, cloning style, color scheme, basic body shape]**
+        - Don't add anyone you don't need in your current story.
+
+    5. Staying Consistent
+        - Access the description in which the contents of the previous story are saved.
+        - Do an analysis of the previous story and the current story.
+    
+        - Identify if there is a change in the object in the story. 
+            - If a change exists, it ignores the information of the object written in the description, because the description contains previous information.
+            - If no change exists, reconstruct the object's appearance with the information in the description from the image prompt you created, because it needs to be consistent.
+
+        - Identify if there is a change in the background in the story.
+            - If the change exists, ignore the background written in the description, as it is previous information.
+            - If the change doesn't exist, then change the background of the image prompt to the background written in the description, because it needs to be consistent.
+    
+    6. Analyze the image prompts.
+        - Is the content of the image prompt focused on the current story? Explain the rationale in detail.
+        - Is the image prompt focused on the behavior of each object in the current story? Explain the rationale in detail.
+        - If the main object's actions exist in the story, does the image prompt appropriately reflect the emotional and behavioral changes of each object due to those actions? Explain the rationale in detail.
+        - If not, please find out the detailed reasons and explanations for 1 and 2 and 3 reconstruct the image prompt to focus on the current story.
+    
+    7. Final Image Prompt
+    - **Create a final image prompt that aggregates everything**
+    - Begin with: "best quality,"
+    
+    """
 )
 
 DESCRIPTION_PROMPT = (
-    "You are an AI helper who writes a comprehensive and up-to-date description of the current story state.\n\n"
-    "1. You have access to:\n"
-    "- The summarized story (which shows how the story has progressed).\n"
-    "- The previous description (the prior state of all objects and environment).\n"
-    "- The previous image prompt.\n"
-    "- The latest user input (new events or interactions).\n\n"
-    "2. Your goal is:\n"
-    "- To update the **scene description** so that it accurately reflects any new changes from the latest input.\n"
-    "- Capture changes in objects, their interactions, or the background.\n"
-    "- Ensure consistency with the summarized story so far.\n\n"
-    "3. **Important**:\n"
-    "- Only output the final updated description.\n"
-    "- Do NOT restate the entire story.\n"
-    "- Do NOT write any extra explanations or text.\n"
-    "- Do NOT include the summary story text itself.\n"
-    "- If something changed, update or remove the old information. If new info was introduced, add it.\n\n"
-    "4. **Output Format** (strict):\n"
-    "- <object>: [features], [emotions], [status], [action/interaction]\n"
-    "- <object2>: [features], [emotions], [status], [action/interaction]\n"
-    "- <Time/Background>: [Time], [Weather], [Background]\n\n"
-    "### Your final answer must strictly follow the bullet format above.\n"
-    "### Provide no additional lines, no summary, no repeated context.\n"
+    """
+    You are an AI that analyzes image prompts and stores each object and background information about the current story.
+    **All contents are translated into English, processed, and printed in English.**
+    
+    1. Analyze the image prompts based on the current story.
+    2. Identify the information and background information of each object.
+    3. Use the results of 1 and 2 to simply write DESCRIPTION FORM to keep the image prompt consistent.
+    4. If an object disappears, do not delete it; instead, write "Noted in the present story" in [STATUS] as it may be used in later stories.
+    5. **The TARGET object only stores key characters (never add buildings, objects, etc.)**
+    
+    # DESCRIPTION FORM
+    [TARGET] (**Major characters only**)
+      - [ATTIRE] (**Do not include an object's behavior.** e.g., age, hair color, clothing style, color scheme, weapons/items, basic body shape)
+      - [EMOTION] (e.g., angry, happy, scared, fearful)
+      - [STATUS] (e.g., dead or Not needed in the present story or Existence)
+
+    [BACKGROUND] (Use only one-word or simple keywords. Do not add any extra details, e.g., desert, village, kingdom)
+
+    **Output only the DESCRIPTION FORM as specified, with no additional text or explanation.**
+    **Never add data other than DESCRIPTION FROM.**
+    """
 )
 
 class BaseAYL_Node:
@@ -71,8 +119,13 @@ class BaseAYL_Node:
         ]
         return self.generate_model_output(messages)
 
-    def generate_description(self, story, description, user_input: str) -> str:
-        combined_input = f"Story summary: {story}\nDescription: {description}\nCurrent story: {user_input}"
+    def generate_description(self, story, description, previous_pronpt, user_input: str) -> str:
+        combined_input = (
+            # f"[STORY SUMMARY START] {self.summary_story_text} [STORY SUMMARY END]\n\n"
+            f"[CURRENT STORY START] {user_input} [CURRENT STORY END]\n\n"
+            # f"[PREVIOUS DESCRIPTION START] {self.description} [PREVIOUS DESCRIPTION START]"
+            f"Previous Image Prompt: {previous_pronpt}"
+        )
         messages = [
             {"role": "system", "content": DESCRIPTION_PROMPT},
             {"role": "user", "content": combined_input}
@@ -81,15 +134,18 @@ class BaseAYL_Node:
 
     def generate_image_prompt(self, story, description, pre_prompt, user_input: str):
         combined_input = (
-            f"Story summary: {story}\n"
-            f"Description: {description}\n"
-            f"Previous Image Prompt: {pre_prompt}\n"
-            f"Current story: {user_input}"
-        )
+            # f"[STORY SUMMARY START] {self.summary_story_text} [STORY SUMMARY END]\n\n"
+            # f"Previous prompt: {self.previous_prompt}\n"
+            f"[DESCRIPTION START] {description} [DESCRIPTION END]\n\n"
+            f"[Current STORY START] {user_input} [CURRENT STORY END]"
+        )   
         messages = [
-            {"role": "system", "content": IMAGE_PROMPT},
-            {"role": "user", "content": combined_input}
-        ]
+                {"role": "system",
+                "content": IMAGE_PROMPT
+                },
+                {"role": "user",
+                "content": combined_input}
+            ]
         return self.generate_model_output(messages)
 
     def generate_model_output(self, messages):
@@ -165,9 +221,9 @@ class AYL_Node(BaseAYL_Node):
             DESCRIPTION = ayl_api_node[2]
 
         SUMMARY_STORY = self.summary_story(SUMMARY_STORY, text)
-        DESCRIPTION = self.generate_description(DESCRIPTION, DESCRIPTION, text)
         PREVIOUS_PROMPT = self.generate_image_prompt(PREVIOUS_PROMPT, DESCRIPTION, PREVIOUS_PROMPT, text)
-            
+        DESCRIPTION = self.generate_description(DESCRIPTION, DESCRIPTION, PREVIOUS_PROMPT, text)
+          
         return (PREVIOUS_PROMPT, SUMMARY_STORY, DESCRIPTION)
 
     def generate_model_output(self, messages):
